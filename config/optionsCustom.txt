@@ -1,0 +1,62 @@
+-- Sacred 2 Gold - camara para ultrawide 32:9 (5120x1440)
+-- Se aplica encima de options.txt. Para volver a la original: borra este archivo
+-- (copia de la version anterior en optionsCustom.txt.bak-*).
+--
+-- Verificado con REA en s2core.dll (cGameConfigMgr::initCamera / initOptions):
+--   * Tabla "camera": distancias, angulos, giro automatico, amortiguacion.
+--   * Tabla "options": cameraConfigFollow/Collision/AutoCurve y cameraConfigZoom*.
+--     Antes estaban como camera.cameraConfig* y el juego las ignoraba; por eso
+--     el zoom seguia topado en 20 m aunque trackdist_max fuera 2000.
+--   * cameraConfigZoom* son ENTEROS (metros); los decimales se truncan.
+-- Escala: 42.5 unidades = 1 m. Angulos en radianes (negativo = mira hacia abajo).
+
+-- ------------------------------------------------------------------ camera
+-- Control manual: sin reacomodo automatico detras del heroe (default 0.5)
+-- ni amortiguacion del giro (default 1, se siente flotante)
+camera.cam_autorot_speed = 0
+camera.cameraDamping     = 0
+camera.cameraShake       = 0
+
+-- Distancias (default 120..850 = 2.8..20 m)
+camera.cam1_trackdist_min = 400     -- 9.4 m
+camera.cam1_trackdist_max = 2000    -- 47 m
+camera.dng1_trackdist_min = 250     -- 5.9 m (mazmorras, default 150)
+camera.dng1_trackdist_max = 1200    -- 28 m  (mazmorras, default 710; mas lejos atraviesa techos)
+camera.cam_autozoom_min   = 400
+camera.cam_autozoom_max   = 2000
+
+-- Angulo de inclinacion. El motor interpola entre rotx_min (zoom cercano) y
+-- rotx_max (zoom lejano); rotx_emax es el tope al inclinar a mano.
+-- Default exterior: -0.08 (4.6 grados, casi horizontal) .. -0.99 (57 grados).
+-- Con 32:9 el picado casi horizontal deja medio monitor de cielo: se baja a 20.
+camera.cam1_rotx_min  = -0.35       -- 20 grados de cerca
+camera.cam1_rotx_max  = -1.05       -- 60 grados de lejos
+camera.cam1_rotx_emax = -1.30       -- 74 grados maximo a mano (default -1.22)
+camera.dng1_rotx_min  = -0.55       -- 31 grados (default -0.48)
+camera.dng1_rotx_max  = -1.00       -- 57 grados (default -0.90)
+camera.dng1_rotx_emax = -1.30
+
+-- ----------------------------------------------------------------- options
+if options then
+	-- Rango real del zoom en metros (default 6..20): acorde con trackdist de arriba
+	options.cameraConfigZoomMin      = 9
+	options.cameraConfigZoomMax      = 47
+	options.cameraConfigZoomCurveMin = 9
+	options.cameraConfigZoomCurveMax = 47
+
+	-- La curva automatica reajusta el angulo al alejar; a 47 m termina girando
+	-- al reves de lo que mueves el raton. Apagada, el angulo sigue rotx_min/max.
+	options.cameraConfigAutoCurve = 0
+
+	options.cameraConfigFollow    = 1   -- 0 = camara libre, sin seguir al heroe
+	options.cameraConfigCollision = 1   -- evita meterse dentro de paredes
+end
+
+-- ------------------------------------------------------------------ render
+-- Niebla de distancia desactivada (render.fog, default 1).
+if render then
+	render.fog = 0
+end
+
+-- Alternativa: invertir el sentido del giro/zoom con la rueda
+-- camera.invert = 1
