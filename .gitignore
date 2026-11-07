@@ -1,0 +1,21 @@
+# Build output
+build/
+*.o
+*.obj
+*.lib
+*.pdb
+*.exp
+
+# Never commit game files, saves or third-party downloads
+*.exe
+*.dll
+*.pak
+*.sav
+*.cfg
+Settings.cfg
+options.txt
+third_party/
+Plugin_ModKit.ini
+Plugin_ModKit_imgui.ini
+*.log
+*.bak-*
