@@ -6,7 +6,7 @@ settings. It drives the game's own engine events (found with REA/Ghidra), never 
 file. `main` is the full ModKit; every mod also lives on its own `mod/*` branch. No game files are included.*
 
 Hermano del [Sacred Gold ModKit](https://github.com/Rampere-98/Sacred-Gold-ModKit), adaptado a cómo se juega Sacred 2.
-Cómo se adaptó cada mod: [docs/ESPECIFICACION.md](docs/ESPECIFICACION.md).
+Cómo se adaptó cada mod: [docs/ESPECIFICACION.md](docs/ESPECIFICACION.md). Qué falta del agente de Sacred Gold y cómo se hará en Sacred 2: [docs/AGENTE.md](docs/AGENTE.md).
 
 > **Estado:** el autoataque está probado en el juego. El resto compila y supera la autoprueba sin el juego, pero
 > **aún no se ha probado en partida**. Lista de pruebas: [docs/PRUEBAS.md](docs/PRUEBAS.md).
@@ -15,9 +15,10 @@ Cómo se adaptó cada mod: [docs/ESPECIFICACION.md](docs/ESPECIFICACION.md).
 
 | Mod | Rama | Qué hace |
 |---|---|---|
-| Autoataque | [`mod/auto-attack`](../../tree/mod/auto-attack) | Ataca a los enemigos cercanos o a los que te atacan, con la orden de ataque del propio motor. Elige primero a quien te hiere o se acerca y a los jefes, se queda con el enemigo que combate y para al acabar. Con arco, ballesta o arma de fuego dispara como lo hace el juego. |
+| Autoataque | [`mod/auto-attack`](../../tree/mod/auto-attack) | Ataca con la orden de ataque del propio motor: solo a quien te ataca o, con «Buscar combate», a cualquier enemigo cercano. Elige primero a quien te hiere o se acerca, a los jefes y a los tipos que más pegan; se queda con el enemigo que combate y para al acabar. Con arco, ballesta o arma de fuego dispara como lo hace el juego. Con poca vida y sin pociones, **se retira** lejos de los enemigos. |
+| Aprendizaje | [`mod/combat-learn`](../../tree/mod/combat-learn) | Aprende cuánto pega cada tipo de enemigo y mantiene una **enciclopedia** de los vistos y muertos, con su sitio, que se guarda entre partidas (`Plugin_ModKit-foes.txt`). |
 | Artes de combate | [`mod/combat-arts`](../../tree/mod/combat-arts) | Lanza tus artes con estrategia: curación bajo un umbral de vida, buffs siempre activos (sin apagarlos nunca), artes de área solo con grupos y artes fuertes reservadas para jefes o emergencias. No corta animaciones. |
-| Recogida | [`mod/auto-loot`](../../tree/mod/auto-loot) | Sin enemigos cerca, va al objeto más cercano y usa la recogida del propio juego, respetando tu filtro de rareza. Nunca toca postes, santuarios ni NPC. Abandona lo inalcanzable. |
+| Recogida | [`mod/auto-loot`](../../tree/mod/auto-loot) | Recogida **propia**, nunca la tecla del juego: toma uno a uno lo que hay alrededor con la orden de un clic. Opcionalmente abre cofres y recipientes, cada uno una sola vez. Solo actúa sin combate y nunca te estorba; lo inalcanzable se reintenta una vez y luego se deja. |
 | Pociones | [`mod/auto-potion`](../../tree/mod/auto-potion) | Bebe cuando falta tanta vida como cura una poción: lo aprende midiendo y no confunde la regeneración. Tiene ranura de reserva, umbral de emergencia y poción de mejora opcional contra jefes. |
 | Menú e indicador | [`mod/menu`](../../tree/mod/menu) | **Inicio** abre un menú ImGui con todas las opciones: cambios al momento y botón «Guardar». Un indicador en pantalla muestra ON/OFF y lo que hace cada mod. |
 | Cámara, ultrawide y niebla | [`mod/camera-ultrawide`](../../tree/mod/camera-ultrawide) | `optionsCustom.txt`: zoom hasta 47 m, ángulo de 20° a 60° para 32:9, sin giro automático y sin niebla de distancia. |
@@ -77,8 +78,8 @@ scripts/            install, uninstall, fetch-imgui
 config/             optionsCustom.txt (camera, ultrawide, no fog)
 ```
 
-- **`main` es el ModKit completo.** Cada mod se desarrolla en su rama `mod/*`, que lleva el núcleo y solo ese mod;
-  `main` las fusiona todas.
+- **`main` es el ModKit completo.** `core` es el núcleo compartido. Cada mod se desarrolla en su rama `mod/*`
+  (el núcleo más solo ese mod), y `main` las fusiona todas.
 - **Cada rama compila por sí sola**: `build.ps1` monta el registro con los archivos `mod_*` presentes.
 - **Para un mod nuevo:** crea `src/mod_<nombre>.c` con su tabla `Setting[]` y `MK_MODULE(mod_<nombre>)`. El menú y
   el `.ini` lo recogen solos.

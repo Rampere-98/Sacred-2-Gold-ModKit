@@ -34,6 +34,8 @@ and none is included in this repository.
 |---|---|
 | Attack | `sEventAttack(attacker, target)` (0x38 bytes), then `target->addAttacker(attacker, 2.5)`. Copied from `s2logicai` `FUN_10005a01`. |
 | Ranged weapon | Same function: `isUsingLongrangeWeapon(target, &weapon, true, &targetPos)` → `cMagicMgr::mapLongRangeWeaponToSpell(weapon)`; if `< 0xb`, `queryStatus(0xe4, spell, &slot, 0)` gives the slot and the hero casts `cEventCastSpell(hero, slot)` + `setTargetRef(target)`. Otherwise a normal attack. |
+| Click on an object | `cEventMoveTo(hero, object position)` + `setTargetRef(object)` (`this+0x30`, flag 8). Server side `handleCommand` calls the creature's `queryStatus(0x184, targetRef)`: the hero walks there and uses it (pick up, open, talk). No caller inside the DLLs: the client (packed exe) sends it on a click. Used by the agent's own collect. |
+| Walk to a point | Copy the hero's `cWorldPosition` (`??0cWorldPosition@@QAE@ABV0@@Z`), `add(x, y, z)`, then `cEventMoveTo(hero, pos)`. The vertical axis is learned at runtime: 3D distance² − `getAbsDistanceTo2D`² = vertical². |
 | Stop | `cEventMoveTo(hero, hero's own cWorldPosition)`: an attack order otherwise keeps the hero swinging. |
 | Move | `cEventMoveTo(entity, const cWorldPosition&)` (more than 0xd0 bytes) |
 | Loot | `cEventAutoCollect(hero, rareSelf, rareOther, silent)`. Server side `filterItemsInRange`: radius 160, 50 when silent; rarity 0-3 = options `autoCollectRareSelf/Other`; each item becomes `cEventItemTransfer(hero, item, 0, 2, false)`. |
@@ -64,6 +66,12 @@ and none is included in this repository.
 F1-F5 weapon sets, F7 save, F8 home teleport, F9-F12 orbs (F11 also hides the HUD),
 Space heal, Q auto-collect, X special pet, 1-5 combat arts, 6-8 buffs, R T Y U I O potions.
 So the ModKit uses Insert (automation), Home (menu) and End (dump).
+
+## Navigation (for exploration and walking anywhere)
+
+Sacred 2 navigates with **Kynapse** (`Kaim::`): `cAIManager::getCollisionWrapper` → `iKynapseCollision`,
+`cAIManager::getLayers` → `CAiMeshLayer` list, `CreatureAIPath` / `CreatureAIPathNodes` (the path a move order
+follows). This is the equivalent of Sacred Gold's tile test; see [AGENTE.md](AGENTE.md).
 
 ## Open questions
 

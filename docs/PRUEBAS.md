@@ -42,10 +42,19 @@ tus artes de combate y tu cinturón de pociones.
 17. El autoataque no corta la animación de un arte (`CastLock`).
 
 ## Recogida
-18. Sin enemigos, va al objeto más cercano y lo recoge (`loot: walking to ...`).
+18. Sin enemigos, va al objeto más cercano y lo recoge uno a uno con la orden de un clic (`loot: take ...`). La
+    tecla de recoger del juego no interviene.
 19. Con enemigos en `SafeRadius` no se aleja; lo que tiene a los pies sí lo recoge.
 20. Si un objeto es inalcanzable, lo deja tras 2 intentos (`loot: gave up`).
 21. Pulsa **Fin** junto a un cofre, un poste y un santuario, y guarda el log: con eso se añaden los cofres.
+
+## Retirada, aprendizaje y enciclopedia
+21a. En el log aparece `up axis learned: y` (o `z`): hace falta para la retirada.
+21b. Con poca vida, sin pociones y enemigos cerca, se aleja (`retreat: start`) y vuelve a luchar al recuperarse.
+21c. Tras unos combates, el menú (Inicio → Aprendizaje) lista los tipos de enemigo con `%/s`, muertos y sitio.
+     `system/Plugin_ModKit-foes.txt` sigue ahí en la siguiente partida.
+21d. Opción «Abrir cofres» activada: abre cofres y barriles una sola vez. Si toca otra cosa (un poste, un portal),
+     guarda el log y avisa.
 
 ## Pociones
 Antes, activa `Pociones automáticas` en el menú.
