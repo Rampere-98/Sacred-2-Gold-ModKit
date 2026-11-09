@@ -33,15 +33,19 @@ static Fn_SetRef castSetTarget;
 #define SPECIAL_SPELL_LIMIT   0xb
 
 static struct {
-    int enabled, onlyWhenAttacked, preferTough, ranged;
+    int enabled, seek, preferTough, ranged;
     float range, stick, reissueMin, reissueMax;
     int lookMin, lookMax, reactMin, reactMax, reactThreatMin, reactThreatMax;
-} C = { 1, 0, 1, 1, 350.0f, 1.35f, 1.6f, 2.6f, 180, 340, 220, 480, 90, 220 };
+    int retreat; float retreatPct, retreatDist;
+} C = { 1, 1, 1, 1, 350.0f, 1.35f, 1.6f, 2.6f, 180, 340, 220, 480, 90, 220, 1, 25.0f, 340.0f };
 
 static const Setting settings[] = {
     { "Enabled", "Autoataque", "Ataca solo a los enemigos cercanos o a los que te atacan.", ST_BOOL, &C.enabled, 0, 1 },
     { "Range", "Radio (unidades)", "Distancia maxima a un enemigo (42.5 = 1 m). La IA del juego usa 100 y 350.", ST_FLOAT, &C.range, 50, 1200 },
-    { "OnlyWhenAttacked", "Solo si me atacan", "1 = solo responde a quien te ataca; no provoca a nadie.", ST_BOOL, &C.onlyWhenAttacked, 0, 1 },
+    { "Seek", "Buscar combate", "1 = va tambien a por cualquier enemigo dentro del radio. 0 = solo responde a quien te ataca.", ST_BOOL, &C.seek, 0, 1 },
+    { "Retreat", "Retirada", "Con poca vida, sin pociones de curacion y enemigos cerca, se aleja de ellos.", ST_BOOL, &C.retreat, 0, 1 },
+    { "RetreatPct", "Retirada por debajo de (%)", "Porcentaje de vida al que empieza la retirada.", ST_PERCENT, &C.retreatPct, 5, 60 },
+    { "RetreatDist", "Distancia de retirada", "Cuanto se aleja cada vez (42.5 = 1 m).", ST_FLOAT, &C.retreatDist, 100, 1000 },
     { "PreferTough", "Priorizar enemigos duros", "Los enemigos con mucha vida (jefes, campeones) que te atacan van antes.", ST_BOOL, &C.preferTough, 0, 1 },
     { "Ranged", "Disparar con arma a distancia", "Con arco, ballesta o arma de fuego dispara como lo hace el juego (si no, ataque normal).", ST_BOOL, &C.ranged, 0, 1 },
     { "StickFactor", "Fidelidad al objetivo", "Se queda con el enemigo actual salvo que otro puntue este factor mejor.", ST_FLOAT, &C.stick, 1.0f, 3.0f },
@@ -132,8 +136,71 @@ static float score(const Ctx *c, unsigned ref, void *ent, float dist, int *threa
         float mhp = mk_health(ent, HEALTH_MAX);
         if (mhp > c->maxHp * 1.5f) s *= 0.7f;          /* champion / boss */
     }
+    if (S.danger) s /= 1.0f + 10.0f * S.danger(E.getType(ent));  /* learned: hard hitters first */
     if (attacking || closing || dist < 120.0f) *threat = 1;
     return s;
+}
+
+/* ------------------------------------------------------------------ retreat */
+static struct { int active; float timer, reissue, startHp; int n; } RT;
+
+/* Walk away from the enemies around: opposite of the sum of directions toward them. */
+static int retreat_step(const Ctx *c)
+{
+    float he, hn, ve = 0.0f, vn = 0.0f, len;
+    int n = 0;
+    mk_ground(mk_pos(c->hero), &he, &hn);
+    for (unsigned i = 0; i < 256; i++) {
+        const EntityNear *e = E.getNearListElement(c->hero, i, NEAR_HOSTILE | NEAR_ALIVE);
+        void *ent;
+        float ee, en, dd;
+        if (!e) break;
+        if (!e->hostile || e->notAlive || e->dist > 450.0f) continue;
+        ent = mk_entity(e->ref);
+        if (!mk_alive(ent)) continue;
+        mk_ground(mk_pos(ent), &ee, &en);
+        dd = mk_sqrt((ee - he) * (ee - he) + (en - hn) * (en - hn));
+        if (dd < 1.0f) continue;
+        ve += (he - ee) / dd; vn += (hn - en) / dd; n++;
+    }
+    if (!n) return 0;
+    len = mk_sqrt(ve * ve + vn * vn);
+    if (len < 0.01f) { ve = 1.0f; vn = 0.0f; len = 1.0f; }    /* surrounded evenly: pick a side */
+    return mk_order_move_offset(c->heroRef, c->hero, ve / len * C.retreatDist, vn / len * C.retreatDist);
+}
+
+static void retreat_end(const char *why)
+{
+    if (!RT.active) return;
+    RT.active = 0;
+    S.busy = 0;
+    logmsg("retreat: end (%s)", why);
+}
+
+/* Returns 1 while retreating (no attack orders then). */
+static int retreat_tick(const Ctx *c)
+{
+    float pct;
+    int close;
+    if (!C.retreat || c->maxHp <= 0.0f) { retreat_end("off"); return 0; }
+    pct = 100.0f * c->hp / c->maxHp;
+    close = mk_hostiles_within(c->hero, 300.0f);
+    if (!RT.active) {
+        if (pct > C.retreatPct || S.healPotions > 0 || !close) return 0;
+        if (!retreat_step(c)) return 0;            /* up axis not learned yet / no helpers */
+        RT.active = 1; RT.timer = 12.0f; RT.reissue = rnd_range(1.6f, 2.4f); RT.startHp = c->hp; RT.n++;
+        A.target = A.pending = 0;
+        S.busy = 1;
+        logmsg("retreat: start (hp %.0f%%)", pct);
+        return 1;
+    }
+    RT.timer -= c->dt; RT.reissue -= c->dt;
+    if (RT.timer <= 0.0f) { retreat_end("time"); return 0; }
+    if (!close) { retreat_end("no enemy close"); return 0; }
+    if (S.healPotions > 0) { retreat_end("potion found"); return 0; }
+    if (c->hp >= RT.startHp + c->maxHp * 0.15f) { retreat_end("health back"); return 0; }
+    if (RT.reissue <= 0.0f) { retreat_step(c); RT.reissue = rnd_range(1.6f, 2.4f); }
+    return 1;
 }
 
 static unsigned pick_enemy(const Ctx *c, float *bestScore, float *curScore)
@@ -151,7 +218,7 @@ static unsigned pick_enemy(const Ctx *c, float *bestScore, float *curScore)
         if (!e->hostile || e->notAlive || e->dist > C.range) continue;
         ent = mk_entity(e->ref);
         if (!mk_alive(ent)) continue;
-        if (C.onlyWhenAttacked && !mk_is_attacking_hero(c->hero, e->ref)) continue;
+        if (!C.seek && !mk_is_attacking_hero(c->hero, e->ref)) continue;
         s = score(c, e->ref, ent, e->dist, &threat);
         if (e->ref == A.target) *curScore = s;
         if (s < *bestScore) { *bestScore = s; best = e->ref; }
@@ -163,7 +230,7 @@ static unsigned pick_enemy(const Ctx *c, float *bestScore, float *curScore)
     return best;
 }
 
-static void reset(void) { A.target = A.pending = 0; S.target = 0; S.threat = 0; }
+static void reset(void) { A.target = A.pending = 0; S.target = 0; S.threat = 0; retreat_end("player"); }
 
 static void tick(const Ctx *c)
 {
@@ -171,7 +238,8 @@ static void tick(const Ctx *c)
     /* automation switched off (key or menu) while fighting: stop the swing once */
     if (A.wasActive && !S.active && A.target) { mk_order_stop(c->heroRef, c->hero); reset(); }
     A.wasActive = S.active;
-    if (!C.enabled || !S.autoOk) return;
+    if (!C.enabled || !S.autoOk) { retreat_end("paused"); return; }
+    if (retreat_tick(c)) { S.target = 0; S.threat = 1; return; }
 
     A.lookIn -= c->dt; A.reactIn -= c->dt; A.reissueIn -= c->dt;
     if (A.lookIn <= 0.0f) {
@@ -208,6 +276,7 @@ static void tick(const Ctx *c)
 static const char *status(void)
 {
     if (!C.enabled) return "Ataque: desactivado";
+    if (RT.active) return "Ataque: retirada (poca vida, sin pociones)";
     if (A.target) return A.threat ? "Ataque: luchando (amenaza)" : "Ataque: luchando";
     return "Ataque: vigilando";
 }
@@ -215,7 +284,7 @@ static const char *status(void)
 static void dump(const Ctx *c)
 {
     (void)c;
-    logmsg("autoattack: target=%08x pending=%08x threat=%d seen=%d orders=%d", A.target, A.pending, A.threat, A.nSeen, A.attacks);
+    logmsg("autoattack: target=%08x pending=%08x threat=%d seen=%d orders=%d retreats=%d seek=%d", A.target, A.pending, A.threat, A.nSeen, A.attacks, RT.n, C.seek);
 }
 
 MK_MODULE(mod_autoattack) = {
