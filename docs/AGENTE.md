@@ -39,3 +39,47 @@ Primero lo más directo en Sacred 2:
 3. **Exploración** (pieza 5), primero con «marcar bloqueado si no avanza» y después con la prueba de Kynapse.
 4. **Ir a cualquier punto** (pieza 8).
 5. **Equipo** (pieza 4), después de la ingeniería inversa del inventario.
+
+## Memoria del mapa: formato de Sacred Gold (para compartir el código)
+
+Lo facilitó la sesión de Sacred Gold (`src/game/map_memory.cpp`, rama `modkit` de sacred-bild).
+
+**En memoria:**
+- `unordered_map<uint64_t, unique_ptr<Chunk>>`.
+- Clave de chunk: `(layer << 48) | (u16(cx) << 16) | u16(cy)`, con `cx = tx >> 5`.
+- Cada chunk es `Cell[1024]` (32x32 casillas), con índice `((ty & 31) << 5) | (tx & 31)`.
+- `Cell`, 7 bytes:
+
+  | Campo | Significado |
+  |---|---|
+  | `visits` | veces pisada (satura en 255) |
+  | `blocked` | veces que no se pudo pisar (satura) |
+  | `r`, `g`, `b` | color medio del suelo |
+  | `samples` | muestras de color (0 = sin color) |
+  | `scan` | 0 sin escanear, 1 se puede pisar, 2 no se puede pisar |
+
+  Una casilla es conocida si algún campo es distinto de 0.
+
+**Archivo** (texto, sin cabecera, una línea por registro, los vacíos no se escriben):
+
+| Registro | Línea |
+|---|---|
+| Casilla | `layer tx ty visits blocked RRGGBB samples scan`. Una línea de 7 columnas se lee con scan 0. |
+| Hallazgo | `L kind layer tx ty`: kind 0 mercader, 1 entrada, 2 portal |
+| Nombre de tipo | `N type nombre_sin_espacios` |
+| Avistamiento | `E type layer tx ty`, deduplicado a 6 casillas por tipo; como mucho 48 por tipo y 6000 en total |
+
+Se guarda como mucho cada 60 s y solo si hay cambios: primero en un archivo temporal, que luego se renombra.
+
+**Uso:**
+- **Exploración:** `cost = log2(1 + visitas del 3x3) + 1.5 × bloqueos`, sumando 2 por cada casilla de scan 2. Va hacia el coste más bajo.
+- **Ruta A\*:**
+  - Una casilla pisada o de scan 1 cuesta 10, y una desconocida 22.
+  - No se pisan las de scan 2 ni las que tienen `blocked >= 2`.
+  - La ventana llega hasta 1100 casillas.
+- **Escaneo:** prueba de casilla a 96 casillas alrededor del héroe, como mucho 2500 por fotograma.
+
+**Adaptación a Sacred 2:**
+- Una casilla será 1 m, que son 42,5 unidades, en el plano del suelo.
+- La capa sale de `cWorldPosition::getLayer`.
+- El escaneo usará la navegación de Kynapse en lugar de la prueba de casilla.
