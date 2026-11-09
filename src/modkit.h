@@ -90,6 +90,18 @@ typedef struct {
     float min, max;
 } Setting;
 
+/* ------------------------------------------------------------------ 2D drawing */
+/* Screen drawing offered by the menu mod (ImGui); modules get it in Module.overlay. */
+#define MK_RGBA(r, g, b, a) ((unsigned)(r) | ((unsigned)(g) << 8) | ((unsigned)(b) << 16) | ((unsigned)(a) << 24))
+typedef struct DrawApi {
+    float w, h;          /* display size in pixels */
+    float scale;         /* UI scale (1 at 1080p) */
+    void (*line)(float x0, float y0, float x1, float y1, unsigned col, float thick);
+    void (*rect)(float x0, float y0, float x1, float y1, unsigned col, int filled);
+    void (*circle)(float x, float y, float r, unsigned col, int filled);
+    void (*text)(float x, float y, unsigned col, const char *s);
+} DrawApi;
+
 /* ------------------------------------------------------------------ modules */
 typedef struct {
     float dt;
@@ -114,6 +126,7 @@ typedef struct Module {
     void (*stop)(void);                  /* plugin unload */
     int disabled;                        /* set by core when resolve fails */
     int (*info)(int line, char *buf, int n); /* extra menu text lines (0 when no more), may be NULL */
+    void (*overlay)(const struct DrawApi *d); /* draw on screen while the overlay shows (needs the menu mod), may be NULL */
 } Module;
 
 #define MK_MODULE(var) Module var   /* build.ps1 greps MK_MODULE(name) to build the registry */
