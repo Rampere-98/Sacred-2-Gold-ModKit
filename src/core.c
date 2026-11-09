@@ -295,6 +295,101 @@ void mk_order_stop(unsigned heroRef, void *hero)
     logmsg("stop");
 }
 
+/* cEventMoveTo + setTargetRef: what a click on an object sends. The server's handleCommand
+ * hands the target to the creature (queryStatus 0x184), which walks there and uses it. */
+int mk_order_interact(unsigned heroRef, unsigned targetRef)
+{
+    unsigned char ev[0x400] __attribute__((aligned(16)));
+    void *t = mk_entity(targetRef);
+    if (!t || !E.moveSetTarget) return 0;
+    memset(ev, 0, sizeof ev);
+    E.eventMoveToCtor(ev, heroRef, E.getPosition(t));
+    E.moveSetTarget(ev, targetRef);
+    mk_push(ev, E.eventMoveToDtor);
+    return 1;
+}
+
+static void ground_axes(int *a0, int *a1)
+{
+    int up = S.upAxis >= 0 ? S.upAxis : 1;
+    *a0 = up == 0 ? 1 : 0;
+    *a1 = up == 2 ? 1 : 2;
+}
+
+void mk_ground(Vec3 v, float *east, float *north)
+{
+    float c[3] = { v.x, v.y, v.z };
+    int a0, a1;
+    ground_axes(&a0, &a1);
+    *east = c[a0];
+    *north = c[a1];
+}
+
+int mk_order_move_offset(unsigned heroRef, void *hero, float east, float north)
+{
+    unsigned char wp[0x80] __attribute__((aligned(16)));   /* cWorldPosition is ~0x1c bytes */
+    unsigned char ev[0x400] __attribute__((aligned(16)));
+    float d[3] = { 0, 0, 0 };
+    int a0, a1;
+    if (S.upAxis < 0 || !E.wposCopy || !E.wposAdd || !E.wposDtor || !hero) return 0;
+    ground_axes(&a0, &a1);
+    d[a0] = east; d[a1] = north;
+    memset(wp, 0, sizeof wp);
+    E.wposCopy(wp, E.getPosition(hero));
+    E.wposAdd(wp, d[0], d[1], d[2]);
+    memset(ev, 0, sizeof ev);
+    E.eventMoveToCtor(ev, heroRef, wp);
+    mk_push(ev, E.eventMoveToDtor);
+    E.wposDtor(wp);
+    return 1;
+}
+
+float mk_dist2d(void *a, void *b)
+{
+    float ea, na, eb, nb;
+    if (!a || !b) return 1e9f;
+    if (E.wposDist2D) return E.wposDist2D(E.getPosition(a), E.getPosition(b));
+    mk_ground(mk_pos(a), &ea, &na);
+    mk_ground(mk_pos(b), &eb, &nb);
+    return mk_sqrt((ea - eb) * (ea - eb) + (na - nb) * (na - nb));
+}
+
+/* Which absolute axis is vertical: 3D distance^2 - ground distance^2 = vertical^2, and
+ * the axis whose difference matches it is the up axis. A few agreeing votes settle it. */
+static int g_upVotes[3];
+static void learn_up_axis(unsigned char *hero)
+{
+    Vec3 h;
+    if (S.upAxis >= 0 || !E.wposDist2D) return;
+    h = mk_pos(hero);
+    for (unsigned i = 0; i < 64; i++) {
+        const EntityNear *e = E.getNearListElement(hero, i, 0);
+        void *ent;
+        Vec3 p;
+        float d[3], v2, best = 1e30f, d3, d2;
+        int axis = -1;
+        if (!e) break;
+        ent = mk_entity(e->ref);
+        if (!ent) continue;
+        p = mk_pos(ent);
+        d[0] = p.x - h.x; d[1] = p.y - h.y; d[2] = p.z - h.z;
+        d3 = d[0] * d[0] + d[1] * d[1] + d[2] * d[2];
+        d2 = E.wposDist2D(E.getPosition(hero), E.getPosition(ent));
+        v2 = d3 - d2 * d2;
+        if (v2 < 25.0f || d3 > 4.0e6f) continue;   /* needs a clear height difference */
+        for (int k = 0; k < 3; k++) {
+            float err = d[k] * d[k] - v2;
+            if (err < 0) err = -err;
+            if (err < best) { best = err; axis = k; }
+        }
+        if (axis >= 0 && best < v2 * 0.2f && ++g_upVotes[axis] >= 5) {
+            S.upAxis = axis;
+            logmsg("up axis learned: %c", "xyz"[axis]);
+            return;
+        }
+    }
+}
+
 int mk_resolve(HMODULE m, void *var, const char *name, int required)
 {
     FARPROC p = m ? GetProcAddress(m, name) : NULL;
@@ -337,6 +432,11 @@ static int resolve_engine(void)
     REQ(E.logic, E.eventMoveToDtor, "??1cEventMoveTo@@UAE@XZ");
 #undef REQ
     mk_resolve(E.logic, &E.healthGet, "?query_creatureHealth_get@cEntityCreature@@IBEMW4eHealth@@@Z", 0);
+    mk_resolve(E.core, &E.wposCopy, "??0cWorldPosition@@QAE@ABV0@@Z", 0);
+    mk_resolve(E.core, &E.wposDtor, "??1cWorldPosition@@QAE@XZ", 0);
+    mk_resolve(E.core, &E.wposAdd, "?add@cWorldPosition@@QAEXMMM@Z", 0);
+    mk_resolve(E.core, &E.wposDist2D, "?getAbsDistanceTo2D@cWorldPosition@@QBEMPBV1@@Z", 0);
+    mk_resolve(E.logic, &E.moveSetTarget, "?setTargetRef@cEventMoveTo@@QAEXI@Z", 0);
 
     g_resolved = ok ? 1 : -1;
     logmsg("core engine exports %s", ok ? "resolved" : "INCOMPLETE - ModKit idle");
@@ -406,7 +506,10 @@ static void tick(float dt)
     if (!(c.maxHp > 1.0f) || c.hp < 0.0f) c.hp = c.maxHp = 0.0f;
 
     if (key_pressed(&g_dump)) {
-        logmsg("---- dump (hp %.0f/%.0f)", c.hp, c.maxHp);
+        {
+            Vec3 hp3 = mk_pos(c.hero);
+            logmsg("---- dump (hp %.0f/%.0f, pos %.0f %.0f %.0f, up axis %d)", c.hp, c.maxHp, hp3.x, hp3.y, hp3.z, S.upAxis);
+        }
         for (unsigned i = 0; i < 256; i++) {
             const EntityNear *e = E.getNearListElement(c.hero, i, NEAR_HOSTILE | NEAR_ALIVE);
             void *ent;
@@ -426,6 +529,19 @@ static void tick(float dt)
     }
 
     if (S.castLock > 0.0f) S.castLock -= dt;
+    {   /* hurt / standing trackers used by loot and tactics */
+        static float lastHp = -1.0f;
+        static Vec3 lastPos;
+        Vec3 p = mk_pos(c.hero);
+        float dx = p.x - lastPos.x, dy = p.y - lastPos.y, dz = p.z - lastPos.z;
+        if (c.maxHp > 0.0f && lastHp >= 0.0f && c.hp < lastHp - 0.5f) S.sinceHurt = 0.0f;
+        else S.sinceHurt += dt;
+        lastHp = c.maxHp > 0.0f ? c.hp : -1.0f;
+        if (dx * dx + dy * dy + dz * dz < 4.0f) S.standing += dt; else S.standing = 0.0f;
+        lastPos = p;
+    }
+    learn_up_axis(c.hero);
+    S.healPotions = -1;   /* the potion mod (ticks first) fills it in */
     for (int k = 1; k < n_all; k++)
         if (!all_modules[k]->disabled && all_modules[k]->tick) all_modules[k]->tick(&c);
 }
@@ -465,6 +581,9 @@ __declspec(dllexport) void dllStartPlugin(void)
     mk_reload_config();
     S.active = K.startActive;
     S.sinceInput = 99.0f;
+    S.sinceHurt = 99.0f;
+    S.upAxis = -1;
+    S.healPotions = -1;
     g_rng ^= GetTickCount();
     for (int k = 1; k < n_all; k++) if (all_modules[k]->init) all_modules[k]->init();
 
