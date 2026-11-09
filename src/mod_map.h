@@ -17,4 +17,8 @@ void map_block(int layer, int tx, int ty);
 int map_tile_of(float v);
 /* Screen point of a ground position on the radar; 0 if the radar is off or it is out of range. */
 int map_radar_xy(const DrawApi *d, float east, float north, float *x, float *y);
+/* Ground position under a screen point of the radar; 0 if outside it. */
+int map_radar_ground(const DrawApi *d, float x, float y, float *east, float *north, int *layer);
+/* Set by the go-to mod while it walks the hero somewhere: exploration waits. */
+extern int map_travel;
 #endif
