@@ -16,11 +16,12 @@
  * Read-only towards the game: it only reads positions and the near list.
  */
 #include "modkit.h"
+#include "mod_map.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-#define TILE        42.5f      /* world units per tile (1 m) */
+#define TILE        MAP_TILE   /* world units per tile (1 m) */
 #define CHUNK_BITS  5
 #define CHUNK_SIDE  (1 << CHUNK_BITS)
 #define CHUNK_CELLS (CHUNK_SIDE * CHUNK_SIDE)
@@ -355,6 +356,42 @@ static void overlay(const DrawApi *d)
     d->circle(cx, cy, 3.5f * d->scale, MK_RGBA(255, 255, 255, 255), 1);
     d->circle(cx, cy, R, MK_RGBA(200, 160, 90, 200), 0);
     d->text(cx - 4.0f * d->scale, cy - R - 2.0f - 17.0f * d->scale, MK_RGBA(230, 200, 140, 255), "N");
+}
+
+/* ------------------------------------------------------------------ API for other mods (mod_map.h) */
+int map_hero(int *layer, float *east, float *north)
+{
+    if (!hero.valid) return 0;
+    *layer = hero.layer; *east = hero.e; *north = hero.n;
+    return 1;
+}
+
+int map_tile(int layer, int tx, int ty, int *visits, int *blocked, int *scan)
+{
+    const Cell *c = cell(layer, tx, ty, 0);
+    *visits = c ? c->visits : 0; *blocked = c ? c->blocked : 0; *scan = c ? c->scan : 0;
+    return c && known(c);
+}
+
+void map_block(int layer, int tx, int ty)
+{
+    Cell *c = cell(layer, tx, ty, 1);
+    if (c && c->blocked < 255) { c->blocked++; dirty = 1; }
+}
+
+int map_tile_of(float v) { return tile_of(v); }
+
+int map_radar_xy(const DrawApi *d, float east, float north, float *x, float *y)
+{
+    float R, ppt, dx, dy;
+    if (!C.radar || !C.enabled || !hero.valid) return 0;
+    R = (float)C.radarRadius * d->scale;
+    ppt = R / (float)C.radarRange;
+    dx = (east - hero.e) / TILE; dy = (north - hero.n) / TILE;
+    if (dx * dx + dy * dy > (float)(C.radarRange * C.radarRange)) return 0;
+    *x = d->w * C.radarX / 100.0f + dx * ppt;
+    *y = d->h * C.radarY / 100.0f - dy * ppt;
+    return 1;
 }
 
 /* ------------------------------------------------------------------ menu / log */
