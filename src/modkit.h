@@ -63,6 +63,12 @@ typedef struct {
     Fn_PushEvent pushEvent;
     Fn_EventMoveToCtor eventMoveToCtor; Fn_Dtor eventMoveToDtor;
     Fn_HealthGet healthGet;            /* optional */
+    /* cWorldPosition helpers (s2core) */
+    void *(__thiscall *wposCopy)(void *self, const void *other);
+    void (__thiscall *wposDtor)(void *self);
+    void (__thiscall *wposAdd)(void *self, float x, float y, float z);
+    float (__thiscall *wposDist2D)(const void *self, const void *other);
+    void (__thiscall *moveSetTarget)(void *ev, unsigned ref);   /* cEventMoveTo::setTargetRef */
     HMODULE core, logic, render;
 } Engine;
 extern Engine E;
@@ -107,6 +113,7 @@ typedef struct Module {
     const char *(*status)(void);         /* one-line status for the overlay, may be NULL */
     void (*stop)(void);                  /* plugin unload */
     int disabled;                        /* set by core when resolve fails */
+    int (*info)(int line, char *buf, int n); /* extra menu text lines (0 when no more), may be NULL */
 } Module;
 
 #define MK_MODULE(var) Module var   /* build.ps1 greps MK_MODULE(name) to build the registry */
@@ -121,6 +128,12 @@ typedef struct {
     unsigned target;     /* auto-attack target (0 none) */
     int threat;          /* something attacks the hero or closes in */
     float castLock;      /* seconds left of a combat art animation: do not re-issue attacks */
+    int healPotions;     /* healing potions left in the configured slots, -1 unknown (no potion mod) */
+    float sinceHurt;     /* seconds since the hero last lost health */
+    float standing;      /* seconds the hero has not moved */
+    int busy;            /* a module is walking the hero somewhere (loot, retreat, explore): others wait */
+    float (*danger)(unsigned type); /* learned danger of an enemy type (0..), NULL without the learn mod */
+    int upAxis;          /* vertical axis of absolute positions (0 x, 1 y, 2 z), -1 until learned at runtime */
     int nModules;
     Module **modules;
 } Shared;
@@ -155,6 +168,12 @@ float mk_health(void *creature, int which);   /* -1 if unavailable */
 void mk_push(void *ev, Fn_Dtor dtor);         /* pushEvent(ev, 0) then destroy the stack copy */
 void mk_order_move(unsigned hero, void *towards);
 void mk_order_stop(unsigned heroRef, void *hero);
+/* The order a click on an object gives: walk to it and use it (pick up, open...). */
+int mk_order_interact(unsigned heroRef, unsigned targetRef);
+/* Walk to the hero's position shifted by (east, north) in world units on the ground plane. */
+int mk_order_move_offset(unsigned heroRef, void *hero, float east, float north);
+float mk_dist2d(void *a, void *b);           /* ground-plane distance (game's getAbsDistanceTo2D) */
+void mk_ground(Vec3 v, float *east, float *north); /* project an absolute position on the ground plane */
 
 /* resolve helpers: return 1 if found */
 int mk_resolve(HMODULE m, void *var, const char *name, int required);
