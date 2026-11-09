@@ -195,6 +195,39 @@ static void draw_overlay(void)
     ImGui::End();
 }
 
+/* ------------------------------------------------------------------ module drawing */
+static void d_line(float x0, float y0, float x1, float y1, unsigned col, float thick)
+{
+    ImGui::GetBackgroundDrawList()->AddLine(ImVec2(x0, y0), ImVec2(x1, y1), col, thick);
+}
+static void d_rect(float x0, float y0, float x1, float y1, unsigned col, int filled)
+{
+    ImDrawList *dl = ImGui::GetBackgroundDrawList();
+    if (filled) dl->AddRectFilled(ImVec2(x0, y0), ImVec2(x1, y1), col);
+    else dl->AddRect(ImVec2(x0, y0), ImVec2(x1, y1), col);
+}
+static void d_circle(float x, float y, float r, unsigned col, int filled)
+{
+    ImDrawList *dl = ImGui::GetBackgroundDrawList();
+    if (filled) dl->AddCircleFilled(ImVec2(x, y), r, col);
+    else dl->AddCircle(ImVec2(x, y), r, col, 0, 1.5f);
+}
+static void d_text(float x, float y, unsigned col, const char *s)
+{
+    ImGui::GetBackgroundDrawList()->AddText(ImVec2(x, y), col, s);
+}
+
+/* Lets other modules draw on screen (the radar of the map memory, for example). */
+static void draw_modules(void)
+{
+    DrawApi d;
+    ImGuiIO &io = ImGui::GetIO();
+    d.w = io.DisplaySize.x; d.h = io.DisplaySize.y; d.scale = ui_scale();
+    d.line = d_line; d.rect = d_rect; d.circle = d_circle; d.text = d_text;
+    for (int k = 0; k < S.nModules; k++)
+        if (!S.modules[k]->disabled && S.modules[k]->overlay) S.modules[k]->overlay(&d);
+}
+
 /* ------------------------------------------------------------------ hooks */
 static void imgui_init(void)
 {
@@ -232,7 +265,9 @@ static void imgui_init(void)
 
 static HRESULT __stdcall hk_present(IDirect3DDevice9 *dev, const RECT *a, const RECT *b, HWND w, const RGNDATA *d)
 {
-    int show = S.menuOpen || (C.overlay && !(C.hideWithF11 && g_hiddenF11));
+    int hidden = C.hideWithF11 && g_hiddenF11, drawers = 0;
+    for (int k = 0; k < S.nModules; k++) if (!S.modules[k]->disabled && S.modules[k]->overlay) drawers = 1;
+    int show = S.menuOpen || (!hidden && (C.overlay || drawers));
     if (dev == g_dev && show) {
         if (!g_imgui) imgui_init();
         if (g_imgui && SUCCEEDED(dev->BeginScene())) {
@@ -240,8 +275,9 @@ static HRESULT __stdcall hk_present(IDirect3DDevice9 *dev, const RECT *a, const 
             ImGui_ImplDX9_NewFrame();
             ImGui_ImplWin32_NewFrame();
             ImGui::NewFrame();
+            if (!hidden) draw_modules();
             if (S.menuOpen) { capture_key(); draw_menu(); }
-            else draw_overlay();
+            else if (C.overlay) draw_overlay();
             ImGui::EndFrame();
             ImGui::Render();
             ImGui_ImplDX9_RenderDrawData(ImGui::GetDrawData());
