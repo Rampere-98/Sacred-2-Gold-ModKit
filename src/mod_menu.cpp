@@ -155,6 +155,10 @@ static void draw_menu(void)
             ImGui::PushItemWidth(ImGui::GetFontSize() * 12);
             for (int i = 0; i < m->nSettings; i++) setting_widget(&m->settings[i]);
             ImGui::PopItemWidth();
+            if (m->info && !m->disabled) {
+                char line[192];
+                for (int i = 0; i < 64 && m->info(i, line, sizeof line); i++) ImGui::TextUnformatted(line);
+            }
         }
     }
     ImGui::Separator();
