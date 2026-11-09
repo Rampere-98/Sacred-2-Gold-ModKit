@@ -24,7 +24,7 @@ Estado a 2026-11-09:
 | 5 | Exploración por pasos hacia lo menos visto, comprobando que el destino se puede pisar | Movimiento: `cEventMoveTo` a un desplazamiento (ya en el núcleo). Comprobar si se puede pisar: navegación **Kynapse** (`cAIManager::getCollisionWrapper` → `iKynapseCollision`, `getLayers` → `CAiMeshLayer`) | **Hecho sin Kynapse** (`mod/explore`, sin probar en partida): pasos de 6, 10 o 14 m en 16 direcciones hacia lo menos pisado, con el coste de Sacred Gold; si el héroe no avanza, se marca bloqueado. Falta la prueba de «se puede pisar» con Kynapse para descartar destinos antes de ir. |
 | 6 | Memoria del mapa: archivo de texto, por capa, bloques de 32x32, 7 bytes por casilla | Rejilla propia en unidades del suelo (por ejemplo 1 casilla = 1 m = 42,5 unidades) y capa de `cWorldPosition::getLayer` | **Hecho** (`mod/map-memory`, sin probar en partida): visitas por casilla y capa, avistamientos de enemigos, guardado atómico cada 60 s en `Plugin_ModKit-map.txt`. Faltan el color del suelo, los hallazgos (`L`) y los nombres (`N`). |
 | 7 | Radar redondo orientado como la pantalla: terreno, rastro, enemigos, botín, hallazgos y enciclopedia | Dibujado con ImGui en el menú; la orientación sale de la cámara (`cCameraController` en `s2render`) | **Hecho, orientado al norte** (en `mod/map-memory`, dibujado con la API 2D del menú). Falta girarlo con la cámara. |
-| 8 | Ir a cualquier punto: clic en el mapa del menú, A* por sectores y memoria, por tramos | Sacred 2 ya busca su propio camino (`cEventMoveTo` → `CreatureAIPath`); para lejos, A* sobre la memoria del mapa por tramos | **Por hacer**, después de 6 y 7. |
+| 8 | Ir a cualquier punto: clic en el mapa del menú, A* por sectores y memoria, por tramos | Sacred 2 ya busca su propio camino (`cEventMoveTo` → `CreatureAIPath`); para lejos, A* sobre la memoria del mapa por tramos | **Hecho** (`mod/goto`, sin probar en partida): clic en el mapa grande (el radar con el menú abierto), A* con los costes de Sacred Gold sobre la memoria del mapa en una ventana de 24 o 96 casillas alrededor, tramos de 12 m con `cEventMoveTo` y replanificación al atascarse. |
 | 9 | Todo se elige desde el menú (Inicio) | Tabla `Setting[]` por mod: el menú y el `.ini` se generan solos | **Hecho** para todo lo de arriba. |
 
 ## Orden propuesto
@@ -37,7 +37,7 @@ Primero lo más directo en Sacred 2:
    - el volcado con Fin junto a cofres, postes y portales.
 2. ~~**Memoria del mapa** y **radar** (piezas 6 y 7)~~: hechos; falta probarlos en partida.
 3. ~~**Exploración** (pieza 5) con «marcar bloqueado si no avanza»~~: hecha; falta probarla en partida y, después, la prueba de Kynapse.
-4. **Ir a cualquier punto** (pieza 8).
+4. ~~**Ir a cualquier punto** (pieza 8)~~: hecho; falta probarlo en partida.
 5. **Equipo** (pieza 4), después de la ingeniería inversa del inventario.
 
 ## Memoria del mapa: formato de Sacred Gold (para compartir el código)

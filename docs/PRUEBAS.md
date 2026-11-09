@@ -71,6 +71,13 @@ Antes, activa `Explorar` en el menú (Inicio → Exploración) y pulsa Insert.
 21l. Al aparecer un enemigo para y lucha; al acabar, recoge el botín y sigue explorando.
 21m. Con poca vida (por debajo de `Vida mínima`) espera a recuperarse. Un clic tuyo o W/S lo paran al momento.
 
+## Ir a un punto
+21n. Con el menú abierto (Inicio), el radar pasa al centro de la pantalla y abarca 150 m. Si tapa el menú, mueve la ventana del menú.
+21o. Clic izquierdo en una zona del mapa grande, fuera de la ventana del menú: aparece un círculo verde y la ruta. Cierra el menú: el héroe va por tramos (`goto: route of N tiles`) y al llegar el log dice `has llegado`.
+21p. Clic derecho en el mapa grande cancela. Un clic tuyo en el juego o W/S también lo cancelan.
+21q. Con un enemigo en el camino se para, lucha (con Insert activado) y luego sigue. Contra una pared rehace el camino (`goto: stuck, planning again`).
+21r. Dime si el punto al que va coincide con donde hiciste clic, o si sale girado o en espejo (el mismo problema que el radar).
+
 ## Pociones
 Antes, activa `Pociones automáticas` en el menú.
 
