@@ -21,6 +21,7 @@ Cómo se adaptó cada mod: [docs/ESPECIFICACION.md](docs/ESPECIFICACION.md). Qu�
 | Recogida | [`mod/auto-loot`](../../tree/mod/auto-loot) | Recogida **propia**, nunca la tecla del juego: toma uno a uno lo que hay alrededor con la orden de un clic. Opcionalmente abre cofres y recipientes, cada uno una sola vez. Solo actúa sin combate y nunca te estorba; lo inalcanzable se reintenta una vez y luego se deja. |
 | Pociones | [`mod/auto-potion`](../../tree/mod/auto-potion) | Bebe cuando falta tanta vida como cura una poción: lo aprende midiendo y no confunde la regeneración. Tiene ranura de reserva, umbral de emergencia y poción de mejora opcional contra jefes. |
 | Memoria del mapa y radar | [`mod/map-memory`](../../tree/mod/map-memory) | Recuerda por dónde has pasado (casillas de 1 m, por capa) y dónde viste cada tipo de enemigo, con el mismo formato que el Sacred Gold ModKit (`Plugin_ModKit-map.txt`). Un **radar** redondo, con el norte arriba, muestra el suelo pisado, tu rastro, los enemigos (vivos y recordados), el botín y los objetos. |
+| Exploración | [`mod/explore`](../../tree/mod/explore) | Desactivada por defecto. Con la automatización y sin combate, el héroe camina por pasos hacia lo que menos ha pisado (el coste del agente de Sacred Gold sobre la memoria del mapa). Si deja de avanzar, marca ese camino como bloqueado y cambia de rumbo. Respeta vida mínima, enemigos cerca y un radio máximo opcional. Va en la misma rama que la memoria del mapa, de la que depende. |
 | Menú e indicador | [`mod/menu`](../../tree/mod/menu) | **Inicio** abre un menú ImGui con todas las opciones: cambios al momento y botón «Guardar». Un indicador en pantalla muestra ON/OFF y lo que hace cada mod. Ofrece a los demás mods una API de dibujo 2D (el radar la usa). |
 | Cámara, ultrawide y niebla | [`mod/camera-ultrawide`](../../tree/mod/camera-ultrawide) | `optionsCustom.txt`: zoom hasta 47 m, ángulo de 20° a 60° para 32:9, sin giro automático y sin niebla de distancia. |
 
@@ -28,7 +29,7 @@ Cómo se adaptó cada mod: [docs/ESPECIFICACION.md](docs/ESPECIFICACION.md). Qu�
 
 | Tecla | Acción |
 |---|---|
-| **Insert** | Automatización ON/OFF: autoataque, artes y recogida (pitido agudo = ON). Las pociones siguen siempre. |
+| **Insert** | Automatización ON/OFF: autoataque, artes, recogida y exploración (pitido agudo = ON). Las pociones siguen siempre. |
 | **Inicio** | Menú del ModKit |
 | **Fin** | Volcado de diagnóstico a `system/Plugin_ModKit.log` |
 | Clic, **W** o **S** | Tomas el control: la automatización espera 0,75 s y nunca da una orden encima de la tuya. |

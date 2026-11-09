@@ -63,6 +63,14 @@ tus artes de combate y tu cinturón de pociones.
 21h. Al salir del juego, `system/Plugin_ModKit-map.txt` existe y en la siguiente partida el radar recuerda el suelo pisado.
 21i. Sin tirones cada 60 s (cuando guarda). Si los hay, dime cuántos bloques marca el menú.
 
+## Exploración
+Antes, activa `Explorar` en el menú (Inicio → Exploración) y pulsa Insert.
+
+21j. Sin enemigos, el héroe da pasos solo hacia donde no ha pisado. En el radar, una X turquesa marca el destino.
+21k. Contra una pared o un río, a los 2 s cambia de rumbo (`explore: stuck` en el log) y en el radar esas casillas salen en rojo. Dime si se queda dando vueltas en el mismo sitio.
+21l. Al aparecer un enemigo para y lucha; al acabar, recoge el botín y sigue explorando.
+21m. Con poca vida (por debajo de `Vida mínima`) espera a recuperarse. Un clic tuyo o W/S lo paran al momento.
+
 ## Pociones
 Antes, activa `Pociones automáticas` en el menú.
 
