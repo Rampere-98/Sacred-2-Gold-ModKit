@@ -1,11 +1,14 @@
 /*
- * Mod: auto loot.
+ * Mod: auto loot (the agent's own collect).
  *
- * With no enemy around, walks to the nearest item on the ground and triggers the
- * game's own radius pick-up (cEventAutoCollect, silent mode, radius 50) once, then
- * waits. The game's rarity filter (autoCollectRareSelf/Other) is applied by the
- * engine itself. Only isItem entities are approached: fixtures, signposts, shrines
- * and NPCs are never touched. Unreachable items are given up after N tries.
+ * Takes what lies around one item at a time with the order a click on it gives
+ * (cEventMoveTo + setTargetRef: the hero walks there and picks it up), never the
+ * game's collect key. Containers (chests, barrels...) can be opened the same way
+ * (opt-in until the End dump has told them apart from fixtures). Only when no fight
+ * is on: nobody attacking the hero, not hurt in the last 3 s, no enemy within
+ * SafeRadius, and never in the player's way (after their last click, hero standing).
+ * Loot it cannot reach is tried again later and then left; used containers are
+ * never gone for again. The game's own radius collect stays available as an option.
  */
 #include "modkit.h"
 #include <string.h>
@@ -18,127 +21,186 @@ static Fn_Dtor collectDtor;
 #define SILENT_RADIUS 50.0f   /* filterItemsInRange, silent */
 
 static struct {
-    int enabled, rareSelf, rareOther, tries, inCombat;
-    float range, timeout, safeRadius;
-} C = { 1, 0, 0, 2, 1, 600.0f, 3.0f, 450.0f };
+    int enabled, always, containers, gameCollect, rareSelf, rareOther, tries, inCombat;
+    float range, timeout, safeRadius, playerWait;
+} C = { 1, 0, 0, 0, 0, 0, 2, 1, 600.0f, 4.0f, 450.0f, 2.5f };
 
 static const Setting settings[] = {
-    { "Enabled", "Recogida automatica", "Sin enemigos cerca, camina al objeto mas cercano y lo recoge.", ST_BOOL, &C.enabled, 0, 1 },
-    { "Range", "Radio de busqueda", "Distancia maxima a un objeto (42.5 = 1 m).", ST_FLOAT, &C.range, 60, 1500 },
-    { "SafeRadius", "Radio sin enemigos", "No va a por objetos si hay un enemigo vivo dentro de este radio.", ST_FLOAT, &C.safeRadius, 0, 1500 },
-    { "AtFeetInCombat", "Recoger a tus pies en combate", "Lo que esta a tus pies se recoge aunque haya combate (sin moverse).", ST_BOOL, &C.inCombat, 0, 1 },
-    { "RareSelf", "Rareza minima (propios)", "0-3, como autoCollectRareSelf del juego. 0 = todo.", ST_INT, &C.rareSelf, 0, 3 },
-    { "RareOther", "Rareza minima (otros)", "0-3, como autoCollectRareOther del juego.", ST_INT, &C.rareOther, 0, 3 },
-    { "WalkTimeout", "Tiempo para llegar (s)", "Si no llega en este tiempo, lo intenta otra vez o lo deja.", ST_FLOAT, &C.timeout, 0.5f, 15.0f },
+    { "Enabled", "El agente recoge el botin", "Recoge uno a uno lo que hay alrededor con la orden de un clic (nunca la tecla de recoger del juego).", ST_BOOL, &C.enabled, 0, 1 },
+    { "Always", "Tambien sin la automatizacion", "1 = recoge siempre que no haya combate, aunque la automatizacion (Insert) este apagada.", ST_BOOL, &C.always, 0, 1 },
+    { "Containers", "Abrir cofres y recipientes", "Abre cofres, barriles y demas (EXPERIMENTAL: puede tocar algo que no es un cofre; cada cosa solo una vez).", ST_BOOL, &C.containers, 0, 1 },
+    { "Range", "Radio de busqueda", "Distancia maxima al botin (42.5 = 1 m).", ST_FLOAT, &C.range, 60, 1500 },
+    { "SafeRadius", "Radio sin enemigos", "No va a por botin si hay un enemigo vivo dentro de este radio.", ST_FLOAT, &C.safeRadius, 0, 1500 },
+    { "AtFeetInCombat", "Recoger a tus pies en combate", "Lo que esta pegado a ti se recoge aunque haya combate.", ST_BOOL, &C.inCombat, 0, 1 },
+    { "PlayerWait", "Espera tras tu clic (s)", "Sin la automatizacion, no empieza hasta estos segundos tras tu ultimo clic.", ST_FLOAT, &C.playerWait, 0.5f, 10.0f },
+    { "WalkTimeout", "Tiempo para llegar (s)", "Si no lo coge en este tiempo, lo deja para luego.", ST_FLOAT, &C.timeout, 0.5f, 15.0f },
     { "Tries", "Intentos por objeto", "Tras estos intentos fallidos lo ignora.", ST_INT, &C.tries, 1, 10 },
+    { "GameCollect", "Usar la recogida del juego", "0 = la del agente (uno a uno). 1 = la de radio del juego, con su filtro de rareza.", ST_BOOL, &C.gameCollect, 0, 1 },
+    { "RareSelf", "Rareza minima (recogida del juego)", "Solo con GameCollect: 0-3 como autoCollectRareSelf.", ST_INT, &C.rareSelf, 0, 3 },
+    { "RareOther", "Rareza minima otros (recogida del juego)", "Solo con GameCollect: 0-3 como autoCollectRareOther.", ST_INT, &C.rareOther, 0, 3 },
 };
 
-#define MAX_BLACK 64
+#define MAX_MEM 128
+typedef struct { unsigned ref; int tries; float retryIn; } Mem;
 static struct {
-    unsigned item;
+    unsigned target; int isContainer;
     float timer, cooldown;
-    int tries, nBlack, picked;
-    unsigned black[MAX_BLACK];
+    Mem mem[MAX_MEM]; int nMem;            /* failed tries per ref */
+    unsigned used[MAX_MEM]; int nUsed;     /* containers used once: never again */
+    int picked, opened;
     const char *state;
 } L;
 
 static int resolve(void)
 {
-    int ok = 1;
-    ok &= mk_resolve(E.logic, &collectCtor, "??0cEventAutoCollect@@QAE@IEE_N@Z", 1);
-    ok &= mk_resolve(E.logic, &collectDtor, "??1cEventAutoCollect@@UAE@XZ", 1);
-    return ok;
+    mk_resolve(E.logic, &collectCtor, "??0cEventAutoCollect@@QAE@IEE_N@Z", 0);
+    mk_resolve(E.logic, &collectDtor, "??1cEventAutoCollect@@UAE@XZ", 0);
+    if (!E.moveSetTarget && !(collectCtor && collectDtor)) return 0;
+    return 1;
 }
 
-static int blacklisted(unsigned ref)
+static Mem *mem_of(unsigned ref, int create)
 {
-    for (int i = 0; i < L.nBlack; i++) if (L.black[i] == ref) return 1;
+    for (int i = 0; i < L.nMem; i++) if (L.mem[i].ref == ref) return &L.mem[i];
+    if (!create) return NULL;
+    if (L.nMem < MAX_MEM) { L.mem[L.nMem].ref = ref; L.mem[L.nMem].tries = 0; L.mem[L.nMem].retryIn = 0; return &L.mem[L.nMem++]; }
+    L.mem[rnd() % MAX_MEM].ref = ref;
+    return mem_of(ref, 0);
+}
+
+static int was_used(unsigned ref)
+{
+    for (int i = 0; i < L.nUsed; i++) if (L.used[i] == ref) return 1;
     return 0;
 }
 
-static void blacklist(unsigned ref)
+static void mark_used(unsigned ref)
 {
-    if (L.nBlack < MAX_BLACK) L.black[L.nBlack++] = ref;
-    else L.black[rnd() % MAX_BLACK] = ref;
+    if (L.nUsed < MAX_MEM) L.used[L.nUsed++] = ref;
+    else L.used[rnd() % MAX_MEM] = ref;
 }
 
-static void order_collect(unsigned hero)
+static int skip(unsigned ref)
+{
+    Mem *m = mem_of(ref, 0);
+    if (was_used(ref)) return 1;
+    return m && (m->tries >= C.tries || m->retryIn > 0.0f);
+}
+
+static void order_game_collect(unsigned hero)
 {
     unsigned char ev[0x80] __attribute__((aligned(16)));
     memset(ev, 0, sizeof ev);
     collectCtor(ev, hero, (unsigned char)C.rareSelf, (unsigned char)C.rareOther, 1 /* silent */);
     mk_push(ev, collectDtor);
-    L.picked++;
 }
 
-static unsigned nearest_item(unsigned char *hero, float maxDist, float *distOut)
+/* Nearest loot: items, and (opt-in) clickable non-creature, non-item things = containers. */
+static unsigned nearest_loot(unsigned char *hero, float maxDist, int *container, float *distOut)
 {
     unsigned best = 0;
     float bestDist = maxDist;
+    *container = 0;
     for (unsigned i = 0; i < 256; i++) {
         const EntityNear *e = E.getNearListElement(hero, i, 0);
         void *ent;
+        int item, cont;
         if (!e) break;
-        if (e->dist > bestDist || blacklisted(e->ref)) continue;
+        if (e->dist > bestDist || skip(e->ref)) continue;
         ent = mk_entity(e->ref);
-        if (!ent || !mk_type_is(E.isItem, ent)) continue;
-        best = e->ref; bestDist = e->dist;
+        if (!ent) continue;
+        item = mk_type_is(E.isItem, ent);
+        cont = !item && C.containers && mk_type_is(E.isClickable, ent) && !mk_type_is(E.isCreature, ent);
+        if (!item && !cont) continue;
+        if (item && mk_dist2d(hero, ent) < 1.0f) continue;  /* carried by the hero, not on the ground */
+        best = e->ref; bestDist = e->dist; *container = cont;
     }
     *distOut = bestDist;
     return best;
 }
 
-static void reset(void) { L.item = 0; L.state = "Recoger: en pausa"; }
+static int attacked(unsigned char *hero)
+{
+    unsigned *it = *(unsigned **)(hero + CREATURE_ATTACKERS_BEGIN);
+    unsigned *end = *(unsigned **)(hero + CREATURE_ATTACKERS_END);
+    return it && end && end > it && (end - it) <= 2 * 16;
+}
+
+static void finish(void) { L.target = 0; S.busy = 0; }
+
+/* A picked-up item may live on as an entity (in the backpack): it leaves the near list. */
+static int in_near(unsigned char *hero, unsigned ref)
+{
+    for (unsigned i = 0; i < 256; i++) {
+        const EntityNear *e = E.getNearListElement(hero, i, 0);
+        if (!e) break;
+        if (e->ref == ref) return 1;
+    }
+    return 0;
+}
+
+static void reset(void) { if (L.target) finish(); L.state = "Recoger: en pausa"; }
+
+static void take(const Ctx *c, unsigned ref, int container)
+{
+    if (C.gameCollect && !container && collectCtor) { order_game_collect(c->heroRef); L.cooldown = rnd_range(0.6f, 1.0f); return; }
+    if (!mk_order_interact(c->heroRef, ref)) return;
+    L.target = ref; L.isContainer = container;
+    L.timer = C.timeout;
+    S.busy = 1;
+    L.state = container ? "Recoger: abriendo un recipiente" : "Recoger: yendo a por un objeto";
+    logmsg("loot: %s %08x", container ? "open" : "take", ref);
+}
 
 static void tick(const Ctx *c)
 {
     float d;
     unsigned it;
-    int danger;
-    if (!C.enabled || !S.autoOk) return;
+    int danger, cont, allowed;
+    for (int i = 0; i < L.nMem; i++) if (L.mem[i].retryIn > 0.0f) L.mem[i].retryIn -= c->dt;
+    allowed = C.enabled && !S.menuOpen && (S.autoOk || (C.always && S.sinceInput >= C.playerWait));
+    if (!allowed) { if (L.target) finish(); return; }
     L.cooldown -= c->dt;
-    danger = S.target || S.threat || (C.safeRadius > 0.0f && mk_hostiles_within(c->hero, C.safeRadius) > 0);
+    danger = S.target || S.threat || attacked(c->hero) || S.sinceHurt < 3.0f ||
+             (C.safeRadius > 0.0f && mk_hostiles_within(c->hero, C.safeRadius) > 0);
+
+    if (L.target) {
+        void *ent = mk_entity(L.target);
+        L.timer -= c->dt;
+        if (danger) { finish(); L.state = "Recoger: esperando (combate)"; return; }
+        if (!ent || !in_near(c->hero, L.target)) {   /* gone: taken */
+            if (L.isContainer) { mark_used(L.target); L.opened++; } else L.picked++;
+            finish(); L.cooldown = rnd_range(0.25f, 0.5f);
+            return;
+        }
+        if (L.isContainer && mk_dist2d(c->hero, ent) < 70.0f && S.standing > 0.8f) {
+            mark_used(L.target); L.opened++;               /* reached and used: never again */
+            finish(); L.cooldown = rnd_range(0.5f, 0.9f);
+            return;
+        }
+        if (L.timer <= 0.0f) {
+            Mem *m = mem_of(L.target, 1);
+            if (m) { m->tries++; m->retryIn = 60.0f; }      /* try once more a minute later */
+            if (m && m->tries >= C.tries) logmsg("loot: gave up on %08x", L.target);
+            finish(); L.cooldown = rnd_range(0.4f, 0.8f);
+        }
+        return;
+    }
 
     if (danger) {
-        L.item = 0;
-        L.state = "Recoger: esperando (enemigos)";
+        L.state = "Recoger: esperando (combate)";
         if (C.inCombat && L.cooldown <= 0.0f && S.castLock <= 0.0f) {
-            /* at its feet only: never walk away from a fight */
-            if (nearest_item(c->hero, SILENT_RADIUS - 5.0f, &d)) { order_collect(c->heroRef); }
+            it = nearest_loot(c->hero, SILENT_RADIUS + 10.0f, &cont, &d);
+            if (it && !cont) take(c, it, 0);              /* at its feet only */
             L.cooldown = rnd_range(0.8f, 1.4f);
         }
         return;
     }
-
-    if (L.item) {
-        void *ent = mk_entity(L.item);
-        L.timer -= c->dt;
-        if (!ent) { L.item = 0; L.cooldown = rnd_range(0.25f, 0.5f); return; } /* picked up by someone */
-        if (mk_dist(c->hero, ent) <= SILENT_RADIUS - 5.0f) {
-            order_collect(c->heroRef);  /* once, then wait */
-            L.item = 0; L.cooldown = rnd_range(0.6f, 1.0f);
-            return;
-        }
-        if (L.timer <= 0.0f) {
-            if (++L.tries >= C.tries) { blacklist(L.item); logmsg("loot: gave up on %08x", L.item); }
-            L.item = 0; L.cooldown = rnd_range(0.4f, 0.8f);
-        }
-        return;
-    }
     if (L.cooldown > 0.0f) return;
-    it = nearest_item(c->hero, C.range, &d);
+    if (!S.autoOk && S.standing < 1.0f) return;           /* never in the player's way */
+    it = nearest_loot(c->hero, C.range, &cont, &d);
     if (!it) { L.cooldown = rnd_range(0.5f, 0.9f); L.state = "Recoger: nada cerca"; return; }
-    if (d <= SILENT_RADIUS - 5.0f) {
-        order_collect(c->heroRef);
-        L.cooldown = rnd_range(0.6f, 1.0f);
-        return;
-    }
-    if (it != L.item) L.tries = 0;
-    L.item = it;
-    L.timer = C.timeout;
-    mk_order_move(c->heroRef, mk_entity(it));   /* once; wait for arrival */
-    L.state = "Recoger: yendo a un objeto";
-    logmsg("loot: walking to %08x (%.0f)", it, d);
+    take(c, it, cont);
 }
 
 static const char *status(void)
@@ -150,10 +212,11 @@ static const char *status(void)
 static void dump(const Ctx *c)
 {
     (void)c;
-    logmsg("loot: item=%08x tries=%d ignored=%d pickups=%d", L.item, L.tries, L.nBlack, L.picked);
+    logmsg("loot: target=%08x container=%d remembered=%d used=%d picked=%d opened=%d",
+           L.target, L.isContainer, L.nMem, L.nUsed, L.picked, L.opened);
 }
 
 MK_MODULE(mod_loot) = {
     "Recogida", "Loot", settings, sizeof settings / sizeof settings[0], 40,
-    0, resolve, 0, tick, reset, dump, status, 0, 0,
+    0, resolve, 0, tick, reset, dump, status, 0, 0, 0,
 };
