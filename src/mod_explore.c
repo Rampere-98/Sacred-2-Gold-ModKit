@@ -131,7 +131,7 @@ static void tick(const Ctx *c)
     if (!map_hero(&layer, &e, &n)) { stop_walking("Explorar: esperando a la memoria del mapa"); return; }
     if (!X.anchored) { X.ae = e; X.an = n; X.anchored = 1; }
 
-    danger = S.target || S.threat || S.busy || S.castLock > 0.0f || S.sinceHurt < 3.0f ||
+    danger = map_travel || S.target || S.threat || S.busy || S.castLock > 0.0f || S.sinceHurt < 3.0f ||
              (C.safeRadius > 0.0f && mk_hostiles_within(c->hero, C.safeRadius) > 0);
     if (danger) {
         stop_walking("Explorar: esperando (combate u otra tarea)");
