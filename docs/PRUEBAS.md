@@ -51,7 +51,7 @@ tus artes de combate y tu cinturón de pociones.
 ## Retirada, aprendizaje y enciclopedia
 21a. En el log aparece `up axis learned: y` (o `z`): hace falta para la retirada.
 21b. Con poca vida, sin pociones y enemigos cerca, se aleja (`retreat: start`) y vuelve a luchar al recuperarse.
-21c. Tras unos combates, el menú (Inicio → Aprendizaje) lista los tipos de enemigo con `%/s`, muertos y sitio.
+21c. Tras unos combates, el menú (Inicio → Aprendizaje) lista los enemigos **por su nombre** (el del juego, en español), con `%/s`, muertos, vistos, vida y «último a N m al NE». Si alguno sale como «tipo 1234», pulsa Fin cerca de él y guarda el log.
      `system/Plugin_ModKit-foes.txt` sigue ahí en la siguiente partida.
 21d. Opción «Abrir cofres» activada: abre cofres y barriles una sola vez. Si toca otra cosa (un poste, un portal),
      guarda el log y avisa.
