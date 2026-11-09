@@ -100,6 +100,8 @@ typedef struct DrawApi {
     void (*rect)(float x0, float y0, float x1, float y1, unsigned col, int filled);
     void (*circle)(float x, float y, float r, unsigned col, int filled);
     void (*text)(float x, float y, unsigned col, const char *s);
+    float mx, my;        /* mouse position in pixels */
+    int click;           /* menu open and clicked outside its windows this frame: 1 left, 2 right, else 0 */
 } DrawApi;
 
 /* ------------------------------------------------------------------ modules */
