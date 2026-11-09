@@ -22,8 +22,8 @@ Estado a 2026-11-09:
 | 3 | Recogida propia, uno a uno con la orden de un clic; cofres y escondites; tras el combate o siempre | `cEventMoveTo` + `setTargetRef(objeto)`, que es lo que manda un clic (el servidor pasa el destino con `queryStatus(0x184)`) | **Hecho para objetos.** Los cofres se pueden activar, pero son experimentales hasta identificarlos con el volcado (Fin). |
 | 4 | Equipo: puntuar piezas, equipar lo mejor, vender y comprar | Pendiente de REA en `s2logic`: inventario (`getInventory`, `cItemInventory`) y `cEventItemTransfer` con los contextos de equipar y vender | **Por hacer.** Primero ingeniería inversa de equipar, vender y comprar, y de las estadísticas de los objetos. Mover objetos por el servidor es legítimo; no se escriben valores. |
 | 5 | Exploración por pasos hacia lo menos visto, comprobando que el destino se puede pisar | Movimiento: `cEventMoveTo` a un desplazamiento (ya en el núcleo). Comprobar si se puede pisar: navegación **Kynapse** (`cAIManager::getCollisionWrapper` → `iKynapseCollision`, `getLayers` → `CAiMeshLayer`) | **Por hacer.** Falta la prueba de «se puede pisar» con Kynapse. Mientras tanto: paso hacia lo menos visto, y si el héroe no avanza, esa casilla se marca bloqueada (como en Sacred Gold). |
-| 6 | Memoria del mapa: archivo de texto, por capa, bloques de 32x32, 7 bytes por casilla | Rejilla propia en unidades del suelo (por ejemplo 1 casilla = 1 m = 42,5 unidades) y capa de `cWorldPosition::getLayer` | **Por hacer.** Formato y tamaño como en Sacred Gold para poder compartir el código. |
-| 7 | Radar redondo orientado como la pantalla: terreno, rastro, enemigos, botín, hallazgos y enciclopedia | Dibujado con ImGui en el menú; la orientación sale de la cámara (`cCameraController` en `s2render`) | **Por hacer.** Al principio orientado al norte; el giro con la cámara después. |
+| 6 | Memoria del mapa: archivo de texto, por capa, bloques de 32x32, 7 bytes por casilla | Rejilla propia en unidades del suelo (por ejemplo 1 casilla = 1 m = 42,5 unidades) y capa de `cWorldPosition::getLayer` | **Hecho** (`mod/map-memory`, sin probar en partida): visitas por casilla y capa, avistamientos de enemigos, guardado atómico cada 60 s en `Plugin_ModKit-map.txt`. Faltan el color del suelo, los hallazgos (`L`) y los nombres (`N`). |
+| 7 | Radar redondo orientado como la pantalla: terreno, rastro, enemigos, botín, hallazgos y enciclopedia | Dibujado con ImGui en el menú; la orientación sale de la cámara (`cCameraController` en `s2render`) | **Hecho, orientado al norte** (en `mod/map-memory`, dibujado con la API 2D del menú). Falta girarlo con la cámara. |
 | 8 | Ir a cualquier punto: clic en el mapa del menú, A* por sectores y memoria, por tramos | Sacred 2 ya busca su propio camino (`cEventMoveTo` → `CreatureAIPath`); para lejos, A* sobre la memoria del mapa por tramos | **Por hacer**, después de 6 y 7. |
 | 9 | Todo se elige desde el menú (Inicio) | Tabla `Setting[]` por mod: el menú y el `.ini` se generan solos | **Hecho** para todo lo de arriba. |
 
@@ -35,7 +35,7 @@ Primero lo más directo en Sacred 2:
    - la orden de clic (recogida);
    - el eje vertical (retirada);
    - el volcado con Fin junto a cofres, postes y portales.
-2. **Memoria del mapa** y **radar** (piezas 6 y 7): solo leen posiciones y no necesitan más REA.
+2. ~~**Memoria del mapa** y **radar** (piezas 6 y 7)~~: hechos; falta probarlos en partida.
 3. **Exploración** (pieza 5), primero con «marcar bloqueado si no avanza» y después con la prueba de Kynapse.
 4. **Ir a cualquier punto** (pieza 8).
 5. **Equipo** (pieza 4), después de la ingeniería inversa del inventario.

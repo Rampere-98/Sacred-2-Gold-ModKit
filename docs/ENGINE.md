@@ -38,6 +38,7 @@ and none is included in this repository.
 | Walk to a point | Copy the hero's `cWorldPosition` (`??0cWorldPosition@@QAE@ABV0@@Z`), `add(x, y, z)`, then `cEventMoveTo(hero, pos)`. The vertical axis is learned at runtime: 3D distance² − `getAbsDistanceTo2D`² = vertical². |
 | Stop | `cEventMoveTo(hero, hero's own cWorldPosition)`: an attack order otherwise keeps the hero swinging. |
 | Move | `cEventMoveTo(entity, const cWorldPosition&)` (more than 0xd0 bytes) |
+| Layer | `cWorldPosition::getLayer()` returns a `char` (`?getLayer@cWorldPosition@@QBEDXZ`); the map memory keys its chunks by it. |
 | Loot | `cEventAutoCollect(hero, rareSelf, rareOther, silent)`. Server side `filterItemsInRange`: radius 160, 50 when silent; rarity 0-3 = options `autoCollectRareSelf/Other`; each item becomes `cEventItemTransfer(hero, item, 0, 2, false)`. |
 | Use item / potion | `cEventItemTransfer(hero, item, 0xc, 2, false)`; the server checks `hasItem`, then `queryStatus(0x9f)`. |
 | Potion belt | `getInventory(hero, 2)` used directly as `cItemInventory*`, `getPotionSlot(0..5, &bp, &item, &count)` |

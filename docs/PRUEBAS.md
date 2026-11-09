@@ -56,6 +56,13 @@ tus artes de combate y tu cinturón de pociones.
 21d. Opción «Abrir cofres» activada: abre cofres y barriles una sola vez. Si toca otra cosa (un poste, un portal),
      guarda el log y avisa.
 
+## Memoria del mapa y radar
+21e. Tras `up axis learned`, aparece el radar (a la derecha, a media altura). Al andar se pinta en verde el suelo pisado y una línea azul con tu rastro.
+21f. Los puntos encajan con lo que ves: rojo enemigo, gris amigo, amarillo botín, azul objeto. Si el radar sale girado o en espejo respecto a la pantalla, dime hacia dónde: el norte se ajusta.
+21g. Pulsa **Fin** y busca `map: ... capa N` y `getLayer available`. Entra en una cueva o mazmorra y vuelve a pulsarlo: dime si la capa cambia.
+21h. Al salir del juego, `system/Plugin_ModKit-map.txt` existe y en la siguiente partida el radar recuerda el suelo pisado.
+21i. Sin tirones cada 60 s (cuando guarda). Si los hay, dime cuántos bloques marca el menú.
+
 ## Pociones
 Antes, activa `Pociones automáticas` en el menú.
 

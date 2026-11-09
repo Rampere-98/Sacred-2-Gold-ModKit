@@ -20,7 +20,8 @@ Cómo se adaptó cada mod: [docs/ESPECIFICACION.md](docs/ESPECIFICACION.md). Qu�
 | Artes de combate | [`mod/combat-arts`](../../tree/mod/combat-arts) | Lanza tus artes con estrategia: curación bajo un umbral de vida, buffs siempre activos (sin apagarlos nunca), artes de área solo con grupos y artes fuertes reservadas para jefes o emergencias. No corta animaciones. |
 | Recogida | [`mod/auto-loot`](../../tree/mod/auto-loot) | Recogida **propia**, nunca la tecla del juego: toma uno a uno lo que hay alrededor con la orden de un clic. Opcionalmente abre cofres y recipientes, cada uno una sola vez. Solo actúa sin combate y nunca te estorba; lo inalcanzable se reintenta una vez y luego se deja. |
 | Pociones | [`mod/auto-potion`](../../tree/mod/auto-potion) | Bebe cuando falta tanta vida como cura una poción: lo aprende midiendo y no confunde la regeneración. Tiene ranura de reserva, umbral de emergencia y poción de mejora opcional contra jefes. |
-| Menú e indicador | [`mod/menu`](../../tree/mod/menu) | **Inicio** abre un menú ImGui con todas las opciones: cambios al momento y botón «Guardar». Un indicador en pantalla muestra ON/OFF y lo que hace cada mod. |
+| Memoria del mapa y radar | [`mod/map-memory`](../../tree/mod/map-memory) | Recuerda por dónde has pasado (casillas de 1 m, por capa) y dónde viste cada tipo de enemigo, con el mismo formato que el Sacred Gold ModKit (`Plugin_ModKit-map.txt`). Un **radar** redondo, con el norte arriba, muestra el suelo pisado, tu rastro, los enemigos (vivos y recordados), el botín y los objetos. |
+| Menú e indicador | [`mod/menu`](../../tree/mod/menu) | **Inicio** abre un menú ImGui con todas las opciones: cambios al momento y botón «Guardar». Un indicador en pantalla muestra ON/OFF y lo que hace cada mod. Ofrece a los demás mods una API de dibujo 2D (el radar la usa). |
 | Cámara, ultrawide y niebla | [`mod/camera-ultrawide`](../../tree/mod/camera-ultrawide) | `optionsCustom.txt`: zoom hasta 47 m, ángulo de 20° a 60° para 32:9, sin giro automático y sin niebla de distancia. |
 
 ## Teclas
@@ -74,6 +75,7 @@ src/core.c          plugin entry, frame listener, config (ini + menu), input, he
 src/mod_*.c/.cpp    one file per mod, registered with MK_MODULE(name)
 build.ps1           generates the module registry from the mod files present and builds
 tools/selftest.c    loads the DLL in a 32-bit process without the game
+tools/test_<mod>.c  offline unit test of a mod (build.ps1 -SelfTest runs it when the mod is present)
 scripts/            install, uninstall, fetch-imgui
 config/             optionsCustom.txt (camera, ultrawide, no fog)
 ```
