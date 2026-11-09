@@ -35,7 +35,8 @@
 static struct {
     int enabled, maxChunks, radar, radarRadius, radarRange, radarSightings;
     float radarX, radarY;
-} C = { 1, 3000, 1, 110, 40, 1, 91.0f, 42.0f };
+    int bigMap, bigRadius, bigRange;
+} C = { 1, 3000, 1, 110, 40, 1, 91.0f, 42.0f, 1, 380, 150 };
 
 static const Setting settings[] = {
     { "Enabled", "Recordar el mapa", "Guarda por donde has pasado (casillas de 1 m) y donde viste cada tipo de enemigo.", ST_BOOL, &C.enabled, 0, 1 },
@@ -45,6 +46,9 @@ static const Setting settings[] = {
     { "RadarRange", "Alcance del radar (m)", "Metros desde el heroe hasta el borde del radar.", ST_INT, &C.radarRange, 10, 120 },
     { "RadarX", "Radar: posicion X (%)", "Centro del radar en % del ancho de la pantalla.", ST_FLOAT, &C.radarX, 0.0f, 100.0f },
     { "RadarY", "Radar: posicion Y (%)", "Centro del radar en % del alto de la pantalla.", ST_FLOAT, &C.radarY, 0.0f, 100.0f },
+    { "BigMap", "Mapa grande con el menu", "Con el menu abierto el radar crece y abarca mas: clic izquierdo = ir alli, clic derecho = cancelar.", ST_BOOL, &C.bigMap, 0, 1 },
+    { "BigRadius", "Mapa grande: tamano (px)", "Radio del mapa grande en pixeles a 1080p.", ST_INT, &C.bigRadius, 150, 520 },
+    { "BigRange", "Mapa grande: alcance (m)", "Metros desde el heroe hasta el borde del mapa grande.", ST_INT, &C.bigRange, 40, 400 },
     { "RadarSightings", "Radar: enemigos recordados", "Marca en el radar donde se vieron enemigos antes, aunque ya no esten.", ST_BOOL, &C.radarSightings, 0, 1 },
 };
 
@@ -280,21 +284,34 @@ static void tick(const Ctx *c)
 }
 
 /* ------------------------------------------------------------------ radar */
+/* Radar placement: the small radar, or the big map while the menu is open. */
+static int geom(const DrawApi *d, float *cx, float *cy, float *R, int *rng)
+{
+    if (!C.radar || !C.enabled || !hero.valid) return 0;
+    if (S.menuOpen && C.bigMap) {
+        *R = (float)C.bigRadius * d->scale;
+        if (*R > d->h * 0.48f) *R = d->h * 0.48f;
+        *cx = d->w * 0.5f; *cy = d->h * 0.5f;      /* centred: the menu window can be moved aside */
+        *rng = C.bigRange;
+    } else {
+        *R = (float)C.radarRadius * d->scale;
+        *cx = d->w * C.radarX / 100.0f; *cy = d->h * C.radarY / 100.0f;
+        *rng = C.radarRange;
+    }
+    return 1;
+}
+
 static void overlay(const DrawApi *d)
 {
     float R, cx, cy, ppt, range, hx, hy;
     int rng, step;
     Chunk *lastCh = NULL;
     unsigned long long lastKey = ~0ULL;
-    if (!C.radar || !C.enabled || !hero.valid) return;
-    R = (float)C.radarRadius * d->scale;
-    cx = d->w * C.radarX / 100.0f;
-    cy = d->h * C.radarY / 100.0f;
-    rng = C.radarRange;
+    if (!geom(d, &cx, &cy, &R, &rng)) return;
     range = (float)rng;
     ppt = R / range;                                  /* pixels per tile */
     hx = hero.e / TILE; hy = hero.n / TILE;
-    step = ppt >= 2.0f ? 1 : (int)(2.0f / ppt + 0.999f);
+    step = ppt >= 3.0f ? 1 : (int)(3.0f / ppt + 0.999f);    /* at least 3 px per drawn square */
 
     d->circle(cx, cy, R, MK_RGBA(12, 12, 14, 150), 1);
 
@@ -381,16 +398,30 @@ void map_block(int layer, int tx, int ty)
 
 int map_tile_of(float v) { return tile_of(v); }
 
+int map_travel;
+
 int map_radar_xy(const DrawApi *d, float east, float north, float *x, float *y)
 {
-    float R, ppt, dx, dy;
-    if (!C.radar || !C.enabled || !hero.valid) return 0;
-    R = (float)C.radarRadius * d->scale;
-    ppt = R / (float)C.radarRange;
+    float R, cx, cy, ppt, dx, dy;
+    int rng;
+    if (!geom(d, &cx, &cy, &R, &rng)) return 0;
+    ppt = R / (float)rng;
     dx = (east - hero.e) / TILE; dy = (north - hero.n) / TILE;
-    if (dx * dx + dy * dy > (float)(C.radarRange * C.radarRange)) return 0;
-    *x = d->w * C.radarX / 100.0f + dx * ppt;
-    *y = d->h * C.radarY / 100.0f - dy * ppt;
+    if (dx * dx + dy * dy > (float)(rng * rng)) return 0;
+    *x = cx + dx * ppt;
+    *y = cy - dy * ppt;
+    return 1;
+}
+
+int map_radar_ground(const DrawApi *d, float x, float y, float *east, float *north, int *layer)
+{
+    float R, cx, cy;
+    int rng;
+    if (!geom(d, &cx, &cy, &R, &rng)) return 0;
+    if ((x - cx) * (x - cx) + (y - cy) * (y - cy) > R * R) return 0;
+    *east = hero.e + (x - cx) / R * (float)rng * TILE;
+    *north = hero.n - (y - cy) / R * (float)rng * TILE;
+    *layer = hero.layer;
     return 1;
 }
 
@@ -408,6 +439,10 @@ static int info(int line, char *buf, int n)
         return 1;
     case 2:
         snprintf(buf, (size_t)n, "Radar: rojo enemigo, gris amigo, amarillo botin, azul objeto, verde suelo pisado");
+        return 1;
+    case 3:
+        if (C.bigMap) snprintf(buf, (size_t)n, "Con el menu abierto, el mapa grande esta en el centro: clic izquierdo = ir alli, derecho = cancelar");
+        else return 0;
         return 1;
     }
     return 0;
