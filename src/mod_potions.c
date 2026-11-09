@@ -95,6 +95,12 @@ static void tick(const Ctx *c)
     float missing, need;
     unsigned item;
     int count, slot;
+    {   /* healing potions left: the retreat tactic needs it even with this mod off */
+        int n = 0;
+        if (slot_item(c->hero, C.slot, &item, &count)) n += count;
+        if (C.backupSlot != C.slot && slot_item(c->hero, C.backupSlot, &item, &count)) n += count;
+        S.healPotions = n;
+    }
     if (!C.enabled || c->maxHp <= 0.0f || S.menuOpen) return;
     P.cooldown -= c->dt;
     P.buffCooldown -= c->dt;
