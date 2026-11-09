@@ -9,6 +9,7 @@
 
 Engine E;
 Shared S;
+int map_travel;
 
 /* fake map: 200x200 tiles centred on 0 */
 #define W 200
