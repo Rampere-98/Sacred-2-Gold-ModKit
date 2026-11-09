@@ -224,6 +224,12 @@ static void draw_modules(void)
     ImGuiIO &io = ImGui::GetIO();
     d.w = io.DisplaySize.x; d.h = io.DisplaySize.y; d.scale = ui_scale();
     d.line = d_line; d.rect = d_rect; d.circle = d_circle; d.text = d_text;
+    d.mx = io.MousePos.x; d.my = io.MousePos.y;
+    d.click = 0;
+    if (S.menuOpen && !ImGui::IsWindowHovered(ImGuiHoveredFlags_AnyWindow)) {   /* clicks on the screen, not on the menu */
+        if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) d.click = 1;
+        else if (ImGui::IsMouseClicked(ImGuiMouseButton_Right)) d.click = 2;
+    }
     for (int k = 0; k < S.nModules; k++)
         if (!S.modules[k]->disabled && S.modules[k]->overlay) S.modules[k]->overlay(&d);
 }
