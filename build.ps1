@@ -46,7 +46,7 @@ $reg -join "`n" | Set-Content -Encoding ascii (Join-Path $out 'registry.c')
 Write-Host "mods: $(if ($names) { $names -join ', ' } else { '(none, core only)' })"
 
 # ---- compile
-$common = @('-target', 'x86-windows-gnu', '-O2', '-Wall', '-Wextra', "-I$src")
+$common = @('-target', 'x86-windows-gnu', '-O2', '-Wall', '-Wextra', '-Wno-missing-field-initializers', "-I$src")
 $objs = @()
 $cfiles = @((Join-Path $src 'core.c'), (Join-Path $out 'registry.c')) + @($mods | Where-Object Extension -eq '.c' | ForEach-Object FullName)
 $cppfiles = @($mods | Where-Object Extension -eq '.cpp' | ForEach-Object FullName)
