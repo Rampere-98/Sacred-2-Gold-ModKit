@@ -97,7 +97,7 @@ if ($SelfTest) {
     if ($LASTEXITCODE) { throw "selftest failed ($LASTEXITCODE)" }
     # offline unit tests of the mods present: tools/test_<mod file name>.c
     foreach ($m in $mods) {
-        $t = Join-Path $root "tools	est_$($m.BaseName).c"
+        $t = Join-Path $root "tools/test_$($m.BaseName).c"
         if (-not (Test-Path $t)) { continue }
         $texe = Join-Path $out "test_$($m.BaseName).exe"
         & $Zig cc -target x86-windows-gnu -O1 "-I$src" -Wno-unused-function -o $texe $t
