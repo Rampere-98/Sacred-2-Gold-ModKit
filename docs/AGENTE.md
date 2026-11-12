@@ -39,6 +39,8 @@ Primero lo más directo en Sacred 2:
 3. ~~**Exploración** (pieza 5) con «marcar bloqueado si no avanza»~~: hecha; falta probarla en partida y, después, la prueba de Kynapse.
 4. ~~**Ir a cualquier punto** (pieza 8)~~: hecho; falta probarlo en partida.
 5. **Equipo** (pieza 4), después de la ingeniería inversa del inventario.
+6. **Previsión de combates** (probabilidad de ganar, orden de objetivos, invocadores): diseño en
+   [PREVISION.md](PREVISION.md), sin implementar.
 
 ## Memoria del mapa: formato de Sacred Gold (para compartir el código)
 
